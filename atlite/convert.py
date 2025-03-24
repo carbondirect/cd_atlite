@@ -490,6 +490,7 @@ def convert_wind(
     ds: xr.Dataset,
     turbine: TurbineConfig,
     interpolation_method: Literal["logarithmic", "power"],
+    target_cf: float,
 ) -> xr.DataArray:
     """
     Convert wind speeds for turbine to wind energy generation.
@@ -504,22 +505,48 @@ def convert_wind(
         ds, to_height=hub_height, method=interpolation_method
     )
 
+    wnd_hub = wnd_hub.compute()
+
     logger.info("wnd_hub")
     logger.info(wnd_hub.to_series())
-    average_wind_speed = wnd_hub.to_series().mean()
+    average_wind_speed = wnd_hub.mean().item()
     logger.info(f"Average wind speed at hub height: {average_wind_speed:.2f} m/s")
 
     def apply_power_curve(da):
         return np.interp(da, V, POW / P)
+    # Hill climbing to adjust wnd_hub
+    step_size = 0.01  # Initial step size for adjustment
+    tolerance = 0.001  # Desired precision for target_cf
+    max_iterations = 1000  # Maximum number of iterations to prevent infinite loops
 
-    da = xr.apply_ufunc(
-        apply_power_curve,
-        wnd_hub,
-        input_core_dims=[[]],
-        output_core_dims=[[]],
-        output_dtypes=[wnd_hub.dtype],
-        dask="parallelized",
-    )
+    for _ in range(max_iterations):
+        da = xr.apply_ufunc(
+            apply_power_curve,
+            wnd_hub,
+            input_core_dims=[[]],
+            output_core_dims=[[]],
+            output_dtypes=[wnd_hub.dtype],
+            dask="parallelized",
+        )
+
+        average_cf = da.mean().item()
+        #logger.info(f"Average CF: {average_cf:.5f}")
+
+        #print(f"{average_cf - target_cf} vs {tolerance}")
+        if abs(average_cf - target_cf) < tolerance:
+            break
+
+        # Adjust wnd_hub based on the difference
+        adjustment = step_size * np.sign(target_cf - average_cf)
+        #logger.info(f"Adjustment: {adjustment:.4f}")
+        wnd_hub = wnd_hub + adjustment
+
+    average_wind_speed = wnd_hub.mean().item()
+    logger.info(f"Adjusted wind speed at hub height: {average_wind_speed:.2f} m/s")
+
+    print(ds)
+    #print(ds['100m_u_component_of_wind'].head(25))
+    #print(ds['100m_v_component_of_wind'].head(25))
 
     da.attrs["units"] = "MWh/MWp"
     da = da.rename("specific generation")
@@ -532,6 +559,7 @@ def wind(
     smooth: bool | dict = False,
     add_cutout_windspeed: bool = False,
     interpolation_method: Literal["logarithmic", "power"] = "logarithmic",
+    target_cf: float = 0.0,
     **params,
 ) -> xr.DataArray:
     """
@@ -583,6 +611,7 @@ def wind(
         convert_func=convert_wind,
         turbine=turbine,
         interpolation_method=interpolation_method,
+        target_cf=target_cf,
         **params,
     )
 

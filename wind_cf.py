@@ -6,21 +6,12 @@ from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
-limon_co_lat = 39.26719230055635
-limon_co_lon = -103.69300728924804
-
 # much windier spot...
-ne_wind_lat = 42.0
-ne_wind_lon = -102.5
+wind_lat = 44.00
+wind_lon = -96.00
 
-center_lon = limon_co_lon
-center_lat = limon_co_lat
-
-center_lat = ne_wind_lat
-center_lon = ne_wind_lon
-
-#center_lat = 47.5
-#center_lon = -98.5
+center_lat = wind_lat
+center_lon = wind_lon
 
 # Define a roughly 30x30km box around the MISO coordinates
 # 1 degree of latitude is approximately 111 km
@@ -46,13 +37,14 @@ print(f"Max Longitude: {max_lon:.6f}")
 
 cutout = atlite.Cutout(
     # path="limon_co_wind.nc",
-    path="ne_wind_new_1day.nc",
-    module="era5",
-    x=slice(min_lon + 180, max_lon + 180),  # convert to 360 here, avoid differences between fetching & existing .nc paths
-    y=slice(min_lat, max_lat),
-    time="2023-01-01",
-    dt="h",
+    path="48.5_-98.5_48.75_-98.25_2023-01-01_2023-12-31.nc",
+    #module="era5",
+    #x=slice(min_lon + 180, max_lon + 180),  # convert to 360 here, avoid differences between fetching & existing .nc paths
+    #y=slice(min_lat, max_lat),
+    #time="2023",
+    #dt="h",
 )
+
 cutout.prepare(show_progress=True)
 
 # Print out the current time
@@ -60,20 +52,16 @@ current_time = datetime.now()
 print(f"Post prepare time: {current_time}")
 
 cap_factors = cutout.wind(
-    turbine="Vestas_V25_200kW", 
-    capacity_factor_timeseries=True
+    turbine="NREL_ReferenceTurbine_2020ATB_4MW", 
+    capacity_factor_timeseries=True,
+    target_cf=0.45
 )
-
-print(cap_factors)
 
 # Convert the DataArray to a DataFrame
 df = cap_factors.to_dataframe().reset_index()
 
-# Preview the DataFrame
-print(df.head())
-
 # get just a single time series from the grid area 
-df_filtered = df[(df['lon'] == 77.25) & (df['lat'] == 41.75)]
+df_filtered = df[(df['lon'] == min_lon) & (df['lat'] == min_lat)]
 print(df_filtered.head())
 
 # Save the DataFrame to a CSV file

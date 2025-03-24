@@ -133,7 +133,7 @@ def get_data_wind(retrieval_params):
     azimuth = arctan2(ds["100m_u_component_of_wind"], ds["100m_v_component_of_wind"])
     ds["wnd_azimuth"] = azimuth.where(azimuth >= 0, azimuth + 2 * np.pi)
 
-    ds = ds.drop_vars(["10m_u_component_of_wind", "10m_v_component_of_wind", "100m_u_component_of_wind", "100m_v_component_of_wind", "wnd10m"])
+    #ds = ds.drop_vars(["10m_u_component_of_wind", "10m_v_component_of_wind", "100m_u_component_of_wind", "100m_v_component_of_wind", "wnd10m"])
     ds = ds.rename({"forecast_surface_roughness": "roughness"})
 
     return ds
