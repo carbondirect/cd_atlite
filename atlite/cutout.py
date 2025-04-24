@@ -660,3 +660,30 @@ class Cutout:
     hydro = hydro
 
     line_rating = line_rating
+    
+    def get_wind_hub_speed(self, **params):
+        """
+        Retrieve the wind speed at hub height after it has been calculated by the wind() method.
+        
+        This method returns the wind speed data that was stored when calling the wind() method
+        with add_cutout_windspeed=True (which is now done automatically).
+        
+        Returns
+        -------
+        wind_hub_speed : xr.DataArray
+            DataArray containing the wind speed at hub height
+            
+        Note
+        ----
+        You must first call the wind() method on this cutout before calling this method,
+        otherwise there will be no wind hub speed data available.
+        
+        You can also specify all of the general conversion arguments
+        documented in the `convert_and_aggregate` function.
+        """
+        if "wnd_hub_data" not in self.data:
+            raise ValueError("No wind hub speed data available. Make sure you have called "
+                            "the wind() method on this cutout first.")
+        # Just return the raw wnd_hub_data without any aggregation
+        return self.data["wnd_hub_data"]
+

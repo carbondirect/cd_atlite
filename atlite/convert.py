@@ -514,12 +514,40 @@ def convert_wind(
 
     def apply_power_curve(da):
         return np.interp(da, V, POW / P)
-    # Hill climbing to adjust wnd_hub
-    step_size = 0.01  # Initial step size for adjustment
-    tolerance = 0.001  # Desired precision for target_cf
-    max_iterations = 1000  # Maximum number of iterations to prevent infinite loops
+    
+    if target_cf > 0:
+        # Hill climbing to adjust wnd_hub
+        step_size = 0.01  # Initial step size for adjustment
+        tolerance = 0.001  # Desired precision for target_cf
+        max_iterations = 1000  # Maximum number of iterations to prevent infinite loops
 
-    for _ in range(max_iterations):
+        for _ in range(max_iterations):
+            da = xr.apply_ufunc(
+                apply_power_curve,
+                wnd_hub,
+                input_core_dims=[[]],
+                output_core_dims=[[]],
+                output_dtypes=[wnd_hub.dtype],
+                dask="parallelized",
+            )
+
+            average_cf = da.mean().item()
+            #logger.info(f"Average CF: {average_cf:.5f}")
+
+            #print(f"{average_cf - target_cf} vs {tolerance}")
+            if abs(average_cf - target_cf) < tolerance:
+                break
+
+            # Adjust wnd_hub based on the difference
+            adjustment = step_size * np.sign(target_cf - average_cf)
+            #logger.info(f"Adjustment: {adjustment:.4f}")
+            #print(f"Adjustment: {adjustment:.4f}")
+            wnd_hub = wnd_hub + adjustment
+
+        average_wind_speed = wnd_hub.mean().item()
+        logger.info(f"Adjusted wind speed at hub height: {average_wind_speed:.2f} m/s")
+
+    else:
         da = xr.apply_ufunc(
             apply_power_curve,
             wnd_hub,
@@ -529,25 +557,14 @@ def convert_wind(
             dask="parallelized",
         )
 
-        average_cf = da.mean().item()
-        #logger.info(f"Average CF: {average_cf:.5f}")
-
-        #print(f"{average_cf - target_cf} vs {tolerance}")
-        if abs(average_cf - target_cf) < tolerance:
-            break
-
-        # Adjust wnd_hub based on the difference
-        adjustment = step_size * np.sign(target_cf - average_cf)
-        #logger.info(f"Adjustment: {adjustment:.4f}")
-        wnd_hub = wnd_hub + adjustment
-
-    average_wind_speed = wnd_hub.mean().item()
-    logger.info(f"Adjusted wind speed at hub height: {average_wind_speed:.2f} m/s")
-
-    print(ds)
-    #print(ds['100m_u_component_of_wind'].head(25))
-    #print(ds['100m_v_component_of_wind'].head(25))
-
+    # Store the wind hub speed data in dataset for later retrieval
+    wnd_hub_data = wnd_hub.rename(f"wnd_hub_{int(hub_height)}m")
+    wnd_hub_data.attrs.update({
+        "long name": f"wind speed at hub height {hub_height}m",
+        "units": "m s**-1",
+    })
+    ds["wnd_hub_data"] = wnd_hub_data
+    
     da.attrs["units"] = "MWh/MWp"
     da = da.rename("specific generation")
     return da
